@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>안녕하세요</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --card: #ffffff;
+    --accent: #4f6f52;
+    --accent-dark: #3a5240;
+    --text: #2b2b2b;
+    --muted: #8a8a8a;
+    --border: #e4ddd2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+    min-height: 100vh;
+  }
+  .wrap { width: 100%; max-width: 480px; }
+  h1 {
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+    color: var(--accent-dark);
+  }
+  p.sub {
+    text-align: center;
+    color: var(--muted);
+    margin-top: 0;
+    margin-bottom: 28px;
+    font-size: 0.9rem;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+  }
+  .input-row { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 1rem;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0 18px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button:hover { background: var(--accent-dark); }
+  ul#messages {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  ul#messages li {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  ul#messages li:last-child { border-bottom: none; }
+  .time { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+  .status { text-align: center; font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  .empty { text-align: center; color: var(--muted); padding: 20px 0; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>안녕하세요 👋</h1>
+    <p class="sub">말한 내용이 Firebase에 저장되고 다시 나타납니다</p>
+
+    <div class="card">
+      <div class="input-row">
+        <input type="text" id="msgInput" placeholder="하고 싶은 말을 입력하세요" />
+        <button id="sendBtn">저장</button>
+      </div>
+      <div class="status" id="status">Firebase 연결 대기 중...</div>
+    </div>
+
+    <div class="card">
+      <ul id="messages">
+        <li class="empty">아직 저장된 메시지가 없습니다</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Firebase SDK (CDN, compat 버전 - 설정이 가장 간단합니다) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <script>
+    // ▼▼▼ 여기에 본인 Firebase 프로젝트 설정을 붙여넣으세요 ▼▼▼
+    // Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱 > SDK 설정 및 구성 에서 복사
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    // ▲▲▲ 여기까지 ▲▲▲
+
+    let db;
+    const statusEl = document.getElementById('status');
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      statusEl.textContent = 'Firebase 연결됨 ✓';
+    } catch (e) {
+      statusEl.textContent = 'Firebase 설정을 아직 입력하지 않았습니다 (위 firebaseConfig 참고)';
+    }
+
+    const input = document.getElementById('msgInput');
+    const btn = document.getElementById('sendBtn');
+    const list = document.getElementById('messages');
+
+    function render(dataObj) {
+      list.innerHTML = '';
+      const entries = dataObj ? Object.values(dataObj) : [];
+      if (entries.length === 0) {
+        list.innerHTML = '<li class="empty">아직 저장된 메시지가 없습니다</li>';
+        return;
+      }
+      entries.sort((a, b) => (a.time || 0) - (b.time || 0));
+      entries.forEach(item => {
+        const li = document.createElement('li');
+        const timeStr = item.time ? new Date(item.time).toLocaleString('ko-KR') : '';
+        li.innerHTML = `<span>${escapeHtml(item.text)}</span><span class="time">${timeStr}</span>`;
+        list.appendChild(li);
+      });
+      list.scrollTop = list.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function saveMessage() {
+      const text = input.value.trim();
+      if (!text || !db) return;
+      db.ref('messages').push({
+        text: text,
+        time: Date.now()
+      });
+      input.value = '';
+    }
+
+    btn.addEventListener('click', saveMessage);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveMessage();
+    });
+
+    // 실시간으로 저장된 메시지 목록 반영
+    if (db) {
+      db.ref('messages').on('value', (snapshot) => {
+        render(snapshot.val());
+      });
+    }
+  </script>
+</body>
+</html>
